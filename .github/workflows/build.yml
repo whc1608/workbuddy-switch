@@ -232,7 +232,8 @@ jobs:
           fi
 
       - name: Generate updater manifest
-        if: matrix.update_arch != '' && vars.PUBLISH_APP != 'false'
+        # 自定义构建：fork 没有官方更新签名私钥，跳过 updater manifest（安装包仍会产出）
+        if: false
         shell: bash
         env:
           UPDATE_OS: ${{ matrix.update_os }}
