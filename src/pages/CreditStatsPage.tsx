@@ -807,9 +807,14 @@ function ResourceBreakdown({ credit, loading }: { credit?: CreditExpiry; loading
       </div>
     );
   }
-  const resources = credit.resources ?? [];
-  if (resources.length === 0) {
+  const allResources = credit.resources ?? [];
+  // 已用完的资源包即使还没到期也不再占用明细列表（与账号弹窗的展示口径一致）
+  const resources = allResources.filter((resource) => resource.remaining > 0);
+  if (allResources.length === 0) {
     return <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">当前没有可展示的资源包。</div>;
+  }
+  if (resources.length === 0) {
+    return <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">当前没有可用积分，已用完的资源包不展示。</div>;
   }
 
   return (
