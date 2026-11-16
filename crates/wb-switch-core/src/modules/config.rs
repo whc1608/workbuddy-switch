@@ -102,6 +102,57 @@ pub fn rate_limit_config_file() -> PathBuf {
     store_dir().join("rate_limit_config.json")
 }
 
+pub fn notify_config_file() -> PathBuf {
+    store_dir().join("notify_config.json")
+}
+
+/// 交互提醒配置：总开关、两类事件是否提醒、客户端在前台时是否静默。
+///
+/// `quietWhenFocused` 默认 `true`：人正看着客户端时再弹「回复完成」纯属噪音；
+/// 「需要你操作」不受它影响（那类提醒的目的是把人叫回来）。
+pub fn default_notify_config() -> Value {
+    json!({
+        "enabled": true,
+        "notifyDone": true,
+        "notifyAttention": true,
+        "quietWhenFocused": true,
+    })
+}
+
+/// 读取交互提醒配置（缺失/损坏时合并默认值），`path` 可注入便于单测。
+pub fn load_notify_config_at(path: &Path) -> Value {
+    let mut cfg = default_notify_config();
+    if let Ok(text) = std::fs::read_to_string(path) {
+        if let Ok(Value::Object(map)) = serde_json::from_str::<Value>(&text) {
+            for key in ["enabled", "notifyDone", "notifyAttention", "quietWhenFocused"] {
+                if let Some(value) = map.get(key).and_then(Value::as_bool) {
+                    cfg[key] = json!(value);
+                }
+            }
+        }
+    }
+    cfg
+}
+
+pub fn load_notify_config() -> Value {
+    load_notify_config_at(&notify_config_file())
+}
+
+/// 保存交互提醒配置（只保留已知字段）。
+pub fn save_notify_config_at(path: &Path, cfg: &Value) -> std::io::Result<()> {
+    let mut merged = default_notify_config();
+    for key in ["enabled", "notifyDone", "notifyAttention", "quietWhenFocused"] {
+        if let Some(value) = cfg.get(key).and_then(Value::as_bool) {
+            merged[key] = json!(value);
+        }
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let content = serde_json::to_string_pretty(&merged).unwrap_or_default();
+    atomic_write(path, &content)
+}
+
 pub fn official_usage_cache_file() -> PathBuf {
     store_dir().join("official_usage_cache.json")
 }

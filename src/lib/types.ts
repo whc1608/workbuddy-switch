@@ -568,6 +568,41 @@ export interface RateLimitConfig {
   scanIdeLogs: boolean;
 }
 
+/** 交互提醒 hook 在某一处客户端配置里的注册情况。 */
+export interface NotifyHookTarget {
+  label: string;
+  settingsPath: string;
+  clientExists: boolean;
+  hasSettings: boolean;
+  registered: boolean;
+  /** WorkBuddy 支持 `PermissionRequest` / `Notification`；CodeBuddy IDE 只有基础事件。 */
+  supportsAttentionEvents: boolean;
+}
+
+/** 交互提醒 hook 安装状态（脚本 + 各处客户端配置）。 */
+export interface NotifyHookStatus {
+  scriptPath: string;
+  scriptExists: boolean;
+  eventsPath: string;
+  installed: boolean;
+  installedTargets: number;
+  clientTargets: number;
+  /** 最近一次真正交出的提醒时刻（null = 从未收到事件）。 */
+  lastEventAt?: number | null;
+  targets: NotifyHookTarget[];
+}
+
+/** 交互提醒开关（`~/.wb-switch/notify_config.json`）。 */
+export interface NotifyConfig {
+  enabled: boolean;
+  /** 回复完成时提醒。 */
+  notifyDone: boolean;
+  /** 模型提问 / 请求审批时提醒。 */
+  notifyAttention: boolean;
+  /** 客户端窗口在前台时，完成提醒静默（跨平台仅在 Windows 判定）。 */
+  quietWhenFocused: boolean;
+}
+
 export interface AutoRotateConfig {
   enabled: boolean;
   check_interval_minutes: number;

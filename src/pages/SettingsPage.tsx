@@ -44,6 +44,8 @@ import type {
   CheckinConfig,
   CheckinLog,
   GithubConfig,
+  NotifyConfig,
+  NotifyHookStatus,
   RateLimitConfig,
   RateLimitHookStatus,
   RotateLog,
@@ -2106,8 +2108,205 @@ function RateLimitCard() {
   );
 }
 
-/** 设置页：演示模式不渲染自动签到；Agent Companion 只在桌面正式版显示。 */
-export default function SettingsPage() {
+/**
+ * 交互提醒：模型回复完成 / 向你提问时弹系统通知。
+ *
+ * 数据来自客户端 hook（`~/.wb-switch/interaction-events.jsonl`）：
+ * WorkBuddy 走 `Stop` / `PreToolUse` / `PermissionRequest` / `Notification`，
+ * CodeBuddy IDE（与 CLI、VS Code 共用一份 settings.json）走 `Stop` / `PreToolUse`。
+ */
+function InteractionNotifyCard() {
+  const [config, setConfig] = useState<NotifyConfig | null>(null);
+  const [status, setStatus] = useState<NotifyHookStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([api.getNotifyConfig(), api.getNotifyHookStatus()])
+      .then(([cfg, hook]) => {
+        if (cancelled) return;
+        setConfig(cfg);
+        setStatus(hook);
+      })
+      .catch((e) => {
+        if (!cancelled) toast.error("交互提醒配置加载失败", { description: api.asError(e) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function onToggle(patch: Partial<NotifyConfig>) {
+    if (!config || busy) return;
+    const previous = config;
+    // 整份提交：只带一个字段会把其它开关冲回默认值。
+    const next = { ...config, ...patch };
+    setConfig(next);
+    setBusy(true);
+    try {
+      setConfig(await api.saveNotifyConfig(next));
+    } catch (e) {
+      setConfig(previous);
+      toast.error("交互提醒设置保存失败", { description: api.asError(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onInstall() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      setStatus(await api.installNotifyHook());
+      toast.success("已接入交互提醒", {
+        description: "重启 WorkBuddy / CodeBuddy IDE 后开始生效",
+      });
+    } catch (e) {
+      toast.error("接入交互提醒失败", { description: api.asError(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onUninstall() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      setStatus(await api.uninstallNotifyHook());
+      toast.success("已卸载交互提醒 hook", {
+        description: "客户端配置里属于别的工具的 hook 未改动",
+      });
+    } catch (e) {
+      toast.error("卸载交互提醒 hook 失败", { description: api.asError(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onTest() {
+    try {
+      await api.testNotification();
+    } catch (e) {
+      toast.error("测试通知发送失败", { description: api.asError(e) });
+    }
+  }
+
+  const clients = (status?.targets ?? []).filter((target) => target.clientExists);
+  const registered = clients.filter((target) => target.registered);
+  const hookDescription = !status
+    ? "加载中…"
+    : clients.length === 0
+      ? "未检测到 WorkBuddy / CodeBuddy 客户端，没有可接入的配置"
+      : status.installed
+        ? `${registered.length} / ${clients.length} 个客户端已接入（${registered.map((target) => target.label).join("、")}）；改动需重启客户端生效`
+        : "未接入：不会弹任何提醒；点「接入 hook」把提醒脚本写进客户端配置";
+
+  return (
+    <SettingsGroup id="settings-interaction-notify" title="交互提醒">
+      <CardContent className="space-y-0 p-0">
+        <SettingsFieldRow
+          label="启用交互提醒"
+          description="关闭后不再弹系统通知；已接入的 hook 保留，重新开启即恢复"
+          htmlFor="notify-enabled"
+          operational
+        >
+          <Switch
+            id="notify-enabled"
+            checked={config?.enabled ?? true}
+            disabled={busy || !config}
+            onCheckedChange={(v) => void onToggle({ enabled: v })}
+            aria-label="启用交互提醒"
+          />
+        </SettingsFieldRow>
+
+        <SettingsFieldRow
+          label="回复完成时提醒"
+          description="一轮回复结束时弹通知，正文带最后一条回复的摘要"
+          htmlFor="notify-done"
+          operational
+        >
+          <Switch
+            id="notify-done"
+            checked={config?.notifyDone ?? true}
+            disabled={busy || !config}
+            onCheckedChange={(v) => void onToggle({ notifyDone: v })}
+            aria-label="回复完成时提醒"
+          />
+        </SettingsFieldRow>
+
+        <SettingsFieldRow
+          label="需要你操作时提醒"
+          description="模型向你提问、请求权限或等你确认时提醒（CodeBuddy IDE 只支持提问类）"
+          htmlFor="notify-attention"
+          operational
+        >
+          <Switch
+            id="notify-attention"
+            checked={config?.notifyAttention ?? true}
+            disabled={busy || !config}
+            onCheckedChange={(v) => void onToggle({ notifyAttention: v })}
+            aria-label="需要你操作时提醒"
+          />
+        </SettingsFieldRow>
+
+        <SettingsFieldRow
+          label="客户端在前台时静默"
+          description="正看着客户端时不再弹「回复完成」，避免自我打扰；「需要你操作」不受影响（仅 Windows 可判定）"
+          htmlFor="notify-quiet"
+          operational
+        >
+          <Switch
+            id="notify-quiet"
+            checked={config?.quietWhenFocused ?? true}
+            disabled={busy || !config}
+            onCheckedChange={(v) => void onToggle({ quietWhenFocused: v })}
+            aria-label="客户端在前台时静默"
+          />
+        </SettingsFieldRow>
+
+        <SettingsFieldRow
+          label="接入客户端 hook"
+          description={hookDescription}
+          operational
+        >
+          {status?.installed ? (
+            <Button
+              id="notify-hook"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => void onUninstall()}
+            >
+              {busy ? <Loader2 className="animate-spin" /> : null}卸载 hook
+            </Button>
+          ) : (
+            <Button
+              id="notify-hook"
+              size="sm"
+              disabled={busy || !status || clients.length === 0}
+              onClick={() => void onInstall()}
+            >
+              {busy ? <Loader2 className="animate-spin" /> : null}接入 hook
+            </Button>
+          )}
+        </SettingsFieldRow>
+
+        <SettingsFieldRow
+          className="border-b-0"
+          label="试一试"
+          description="发一条测试通知，确认系统通知权限与样式正常"
+          operational
+        >
+          <Button id="notify-test" size="sm" variant="outline" onClick={() => void onTest()}>
+            发送测试通知
+          </Button>
+        </SettingsFieldRow>
+      </CardContent>
+    </SettingsGroup>
+  );
+}
+
+/** 设置页：演示模式不渲染自动签到；Agent Companion 只在桌面正式版显示。 */export default function SettingsPage() {
   return (
     <div className="mx-auto min-w-0 w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
       <header className="mb-10 sm:mb-12">
@@ -2124,6 +2323,7 @@ export default function SettingsPage() {
         {api.isDemoMode() ? null : <AutoCheckinCard />}
         <AutoRotateCard />
         <RateLimitCard />
+        {api.isDesktop() && !api.isDemoMode() ? <InteractionNotifyCard /> : null}
         {api.isDesktop() && !api.isDemoMode() ? <CompanionCard /> : null}
         {api.isDesktop() || api.isDemoMode() ? <StartupCard /> : null}
         <NotificationHistoryCard />

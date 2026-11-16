@@ -21,6 +21,8 @@ import type {
   GithubConfig,
   ImportPreviewAccount,
   ImportResult,
+  NotifyConfig,
+  NotifyHookStatus,
   OAuthPollResult,
   OAuthStartResult,
   RateLimitConfig,
@@ -874,6 +876,37 @@ export function saveRateLimitConfig(config: RateLimitConfig): Promise<RateLimitC
   return call("save_rate_limit_config", {
     config: config as unknown as Record<string, unknown>,
   });
+}
+
+/** 交互提醒开关（回复完成 / 需要你操作时弹系统通知）。 */
+export function getNotifyConfig(): Promise<NotifyConfig> {
+  return call("get_notify_config");
+}
+
+export function saveNotifyConfig(config: NotifyConfig): Promise<NotifyConfig> {
+  return call("save_notify_config", {
+    configValue: config as unknown as Record<string, unknown>,
+  });
+}
+
+/** 交互提醒 hook 安装状态（脚本 + 各客户端配置）。 */
+export function getNotifyHookStatus(): Promise<NotifyHookStatus> {
+  return call("get_notify_hook_status");
+}
+
+/** 接入提醒 hook（幂等；写入 WorkBuddy / CodeBuddy 的 settings.json）。 */
+export function installNotifyHook(): Promise<NotifyHookStatus> {
+  return call("install_notify_hook");
+}
+
+/** 卸载提醒 hook（只移除本工具的条目，保留同一份配置里的其它 hook）。 */
+export function uninstallNotifyHook(): Promise<NotifyHookStatus> {
+  return call("uninstall_notify_hook");
+}
+
+/** 发一条测试通知，验证系统通知权限与样式。 */
+export function testNotification(): Promise<void> {
+  return call("test_notification");
 }
 
 export function checkin(accountId: string): Promise<CheckinResult> {

@@ -1,6 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod commands;
 mod companion;
+mod interaction;
 #[cfg(target_os = "macos")]
 mod instance_lock;
 #[cfg(desktop)]
@@ -147,6 +148,13 @@ fn spawn_background_loops(app: tauri::AppHandle) {
             modules::limits::invalidate_scan_cache();
         }
     });
+
+    // 交互提醒：消费 `~/.wb-switch/interaction-events.jsonl`（客户端 hook 写入），
+    // 回复完成 / 需要你操作时弹系统通知。提醒 hook 需在设置页显式接入，这里只起消费端。
+    #[cfg(desktop)]
+    if !is_screenshot_demo() {
+        interaction::start(app.clone());
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -304,6 +312,12 @@ pub fn run() {
             companion::get_companion_enabled,
             companion::set_companion_enabled,
             companion::open_companion_settings,
+            interaction::get_notify_config,
+            interaction::save_notify_config,
+            interaction::get_notify_hook_status,
+            interaction::install_notify_hook,
+            interaction::uninstall_notify_hook,
+            interaction::test_notification,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
