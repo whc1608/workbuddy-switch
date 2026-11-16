@@ -69,13 +69,13 @@ fn show(app: &AppHandle, notice: &Notice) {
 fn client_in_foreground() -> bool {
     #[cfg(target_os = "windows")]
     {
-        return foreground::process_name()
+        foreground::process_name()
             .map(|name| {
                 let lower = name.to_ascii_lowercase();
                 (lower.contains("workbuddy") || lower.contains("codebuddy"))
                     && !lower.contains("wb-switch")
             })
-            .unwrap_or(false);
+            .unwrap_or(false)
     }
     #[cfg(not(target_os = "windows"))]
     {

@@ -133,6 +133,14 @@ fn spawn_background_loops(app: tauri::AppHandle) {
     // 同样在跑，托盘菜单随时反映最新阶段。
     update_service::spawn_periodic_check(app.clone());
 
+    // 交互提醒：消费 `~/.wb-switch/interaction-events.jsonl`（客户端 hook 写入），
+    // 回复完成 / 需要你操作时弹系统通知。提醒 hook 需在设置页显式接入，这里只起消费端。
+    // 放在下面的 `move` 闭包之前：`app` 会被限额 watcher 移走。
+    #[cfg(desktop)]
+    if !is_screenshot_demo() {
+        interaction::start(app.clone());
+    }
+
     // 限额 hook 信号：轮询 `~/.wb-switch/hook-events.jsonl`（CLI / WorkBuddy 的 429 当轮
     // 由客户端 hook 追加），入账后通知前端立即拉取。轻量模式下窗口销毁但进程仍在，
     // 状态由后端持有（见 `rate_limit_events.rs`）。
@@ -149,12 +157,6 @@ fn spawn_background_loops(app: tauri::AppHandle) {
         }
     });
 
-    // 交互提醒：消费 `~/.wb-switch/interaction-events.jsonl`（客户端 hook 写入），
-    // 回复完成 / 需要你操作时弹系统通知。提醒 hook 需在设置页显式接入，这里只起消费端。
-    #[cfg(desktop)]
-    if !is_screenshot_demo() {
-        interaction::start(app.clone());
-    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

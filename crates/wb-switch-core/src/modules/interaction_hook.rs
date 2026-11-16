@@ -82,9 +82,8 @@ impl Layout {
                 .iter()
                 .map(|(dir, label, supports)| {
                     let data_root = base.join(dir);
-                    Self::target(data_root, label, *supports)
-                })
-                .collect(),
+                    Self::target(data_root, *label, *supports)
+                })                .collect(),
         }
     }
 

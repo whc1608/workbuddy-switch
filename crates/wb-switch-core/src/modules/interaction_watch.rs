@@ -215,7 +215,11 @@ fn is_attention_notification(payload: &Value) -> bool {
     if kind == "auth_success" {
         return false;
     }
-    if kind == "idle_prompt" || /permission|confirm|approval|credential/.test(&kind) {
+    if kind == "idle_prompt" {
+        return true;
+    }
+    const KIND_HINTS: [&str; 4] = ["permission", "confirm", "approval", "credential"];
+    if KIND_HINTS.iter().any(|hint| kind.contains(hint)) {
         return true;
     }
     let text = format!(
@@ -223,7 +227,8 @@ fn is_attention_notification(payload: &Value) -> bool {
         payload.get("message").and_then(Value::as_str).unwrap_or(""),
         payload.get("title").and_then(Value::as_str).unwrap_or("")
     );
-    /[?？]|确认|允许|拒绝|credential|凭证/.test(&text)
+    const TEXT_HINTS: [&str; 7] = ["?", "？", "确认", "允许", "拒绝", "credential", "凭证"];
+    TEXT_HINTS.iter().any(|hint| text.contains(hint))
 }
 
 fn string_field(payload: &Value, key: &str) -> String {
